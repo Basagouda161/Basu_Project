@@ -1,130 +1,106 @@
-import React, { useRef, useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector } from 'react-redux';
+import { useRef, useState, useEffect } from 'react';
 
-function Profile() {
-  const fileRef = useRef(null);
+export default function Profile() {
   const { currentUser } = useSelector((state) => state.user);
+  const fileRef = useRef(null);
   const [file, setFile] = useState(undefined);
-  const [imageUrl, setImageUrl] = useState(currentUser.avatar);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [success, setSuccess] = useState(false);
+  const [filePerc, setFilePerc] = useState(0);
+  const [fileUploadError, setFileUploadError] = useState(false);
+  const [formData, setFormData] = useState({});
+
+  console.log(formData);
+  // Replace with your Cloudinary credentials
+  const CLOUD_NAME = 'dpruvstkk';
+  const UPLOAD_PRESET = 'mern-estate';
 
   useEffect(() => {
-    if (file) {
-      const uploadImage = () => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", "mern-estate");
-        formData.append("cloud_name", "mern-estate");
-
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "https://api.cloudinary.com/v1_1/mern-estate/image/upload");
-
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = Math.round((event.loaded / event.total) * 100);
-            setProgress(percentComplete);
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status === 200) {
-            const response = JSON.parse(xhr.responseText);
-            setImageUrl(response.secure_url);
-            setSuccess(true);
-            setTimeout(() => setSuccess(false), 3000); // Hide success after 3s
-          } else {
-            console.error("Upload failed", xhr.responseText);
-          }
-          setUploading(false);
-        };
-
-        xhr.onerror = () => {
-          console.error("Upload error");
-          setUploading(false);
-        };
-
-        setUploading(true);
-        setSuccess(false);
-        xhr.send(formData);
-      };
-
-      uploadImage();
-    }
+    if (file) handleFileUpload(file);
   }, [file]);
 
-  // All JSX markup goes inside the return block
-  return (
-    <div className="flex flex-col items-center ">
-      <h1 className="text-3xl font-bold text-center my-7">Profile</h1>
+  const handleFileUpload = async (file) => {
+    setFileUploadError(false);
+    setFilePerc(0);
 
-      <form className="flex flex-col items-center gap-4">
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', UPLOAD_PRESET);
+
+    try {
+      // Track upload progress manually (Cloudinary doesn’t natively return percent)
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`);
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setFilePerc(percentComplete);
+        }
+      });
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
+          setFormData((prev) => ({ ...prev, avatar: data.secure_url }));
+          setFilePerc(100);
+          console.log(file); 
+        } else {
+          setFileUploadError(true);
+        }
+      };
+
+      xhr.onerror = () => setFileUploadError(true);
+      xhr.send(formData);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setFileUploadError(true);
+    }
+  };
+ 
+  return (
+    <div className='p-3 max-w-lg mx-auto'>
+      <h1 className='text-3xl font-semibold text-center my-7'>Profile</h1>
+      <form className='flex flex-col gap-4'>
         <input
           onChange={(e) => setFile(e.target.files[0])}
-          type="file"
+          type='file'
           ref={fileRef}
-          accept="image/*"
           hidden
+          accept='image/*'
+        />
+        <img
+          onClick={() => fileRef.current.click()}
+          src={formData.avatar || currentUser.avatar}
+          alt='profile'
+          className='rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2 bg-black'
         />
 
-        <div className="relative">
-          <img
-            src={imageUrl}
-            onClick={() => fileRef.current.click()}
-            alt="profile"
-            className="rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2"
-          />
-        </div>
+        <p className='text-sm self-center'>
+          {fileUploadError ? (
+            <span className='text-red-700'>
+              Error uploading image (must be less than 10MB)
+            </span>
+          ) : filePerc > 0 && filePerc < 100 ? (
+            <span className='text-slate-700'>{`Uploading ${filePerc}%`}</span>
+          ) : filePerc === 100 ? (
+            <span className='text-green-700'>Image successfully uploaded!</span>
+          ) : (
+            ''
+          )}
+        </p>
 
-        {uploading && (
-          <div className="w-64">
-            <div className="text-sm mb-1 text-gray-700">Uploading: {progress}%</div>
-            <div className="w-full bg-gray-300 rounded-full h-2.5 mb-2">
-              <div
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-200"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-
-        {success && (
-          <div className="w-64 text-green-600 text-sm text-center border border-green-500 rounded p-2">
-            ✅ Uploaded successfully!
-          </div>
-        )}
-
-        <input
-          type="text"
-          placeholder="username"
-          id="username"
-          className="border border-gray-300 rounded-lg p-3"
-        />
-        <input
-          type="email"
-          placeholder="email"
-          id="email"
-          className="border border-gray-300 rounded-lg p-3"
-        />
-        <input
-          type="password"
-          placeholder="password"
-          id="password"
-          className="border border-gray-300 rounded-lg p-3"
-        />
-
-        <button className="bg-slate-700 text-white rounded-lg p-3 uppercase hover:opacity-95 disabled:opacity-80">
+        <input type='text' placeholder='username' id='username' className='border p-3 rounded-lg' />
+        <input type='email' placeholder='email' id='email' className='border p-3 rounded-lg' />
+        <input type='text' placeholder='password' id='password' className='border p-3 rounded-lg' />
+        <button className='bg-slate-700 text-white rounded-lg p-3 uppercase hover:opacity-95 disabled:opacity-80'>
           Update
         </button>
       </form>
 
-      <div className="flex justify-between mt-5 w-64">
-        <span className="text-red-700 cursor-pointer">Delete Account</span>
-        <span className="text-red-700 cursor-pointer">Sign Out</span>
+      <div className='flex justify-between mt-5'>
+        <span className='text-red-700 cursor-pointer'>Delete account</span>
+        <span className='text-red-700 cursor-pointer'>Sign out</span>
       </div>
     </div>
   );
 }
-
-export default Profile;
